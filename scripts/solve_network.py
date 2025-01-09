@@ -52,10 +52,6 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 pypsa.pf.logger.setLevel(logging.WARNING)
 
-tmpdir= '/scratch/' + os.environ['SLURM_JOB_ID']
-if tmpdir is not None:
-   Path(tmpdir).mkdir(parents=True, exist_ok=True)
-
 def add_land_use_constraint_perfect(n):
     """
     Add global constraints for tech capacity limit.
@@ -1012,6 +1008,15 @@ def solve_network(n, config, params, solving, **kwargs):
         logging.getLogger("gurobipy").setLevel(logging.CRITICAL)
 
     #model_kwargs["solver_dir"] = tmpdir
+    tmpdir= '/scratch/' + os.environ['SLURM_JOB_ID']
+    if tmpdir is not None:
+        Path(tmpdir).mkdir(parents=True, exist_ok=True)
+
+    if tmpdir:
+        Path(tmpdir).mkdir(parents=True, exist_ok=True)
+        #kwargs["solver_dir"] = tmpdir
+
+
     rolling_horizon = cf_solving.pop("rolling_horizon", False)
     skip_iterations = cf_solving.pop("skip_iterations", False)
     if not n.lines.s_nom_extendable.any():

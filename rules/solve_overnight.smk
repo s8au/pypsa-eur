@@ -33,6 +33,7 @@ rule solve_sector_network:
     resources:
         mem_mb=config_provider("solving", "mem_mb"),
         runtime=config_provider("solving", "runtime", default="6h"),
+        disk_mb=20000,
     benchmark:
         (
             RESULTS
