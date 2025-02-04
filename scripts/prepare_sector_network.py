@@ -1059,17 +1059,21 @@ def add_EW(n,marg=1, eff=1, cap=1):
     n.add("Carrier", "EW store")
 
     n.madd(
-        "Bus", nodes + " EW co2 store", location=nodes, carrier="EW"
+        "Bus", nodes + " EW co2 store", location=nodes, carrier="EW", unit="t_co2",
     )
+    EW_potentials = pd.read_csv(snakemake.input.EW_potentials, index_col=0)
+    EW_potentials = EW_potentials.sum(axis=1)*snakemake.config["EW"]["max_land_usage"]
+    print(EW_potentials)
 
     n.madd(
         "Store",
-        nodes + " EW co2 store",
-        suffix=" EW",
+        nodes,
+        suffix=" EW co2 store",
         bus=nodes + " EW co2 store",
-        e_nom = 4E7/len(nodes),
+        e_nom = EW_potentials,
         carrier="EW store",
     )
+
     n.madd(
         "Link",
         nodes,
@@ -1078,13 +1082,14 @@ def add_EW(n,marg=1, eff=1, cap=1):
         bus1="co2 atmosphere",
         bus2= nodes + " EW co2 store",
         carrier = "EW",
-        capital_cost = 922345*cap,
-        marginal_cost = 844*marg,
-        efficiency=-5.4*eff,
-        efficiency2=5.4*eff,
+        capital_cost = cap* costs.at["Enhanced Weathering", "investment"]/costs.at["Enhanced Weathering", "electricity-input"],
+        marginal_cost = marg *costs.at["Enhanced Weathering", "VOM"]/costs.at["Enhanced Weathering", "electricity-input"],
+        efficiency=-1/costs.at["Enhanced Weathering", "electricity-input"]*eff, 
+        efficiency2=1/costs.at["Enhanced Weathering", "electricity-input"]*eff,
         p_nom_extendable=True,
-        lifetime = 15,
+        lifetime = costs.at["Enhanced Weathering", "lifetime"],
     )
+    
 
 def add_co2limit(n, options, nyears=1.0, limit=0.0):
     logger.info(f"Adding CO2 budget limit as per unit of 1990 levels of {limit}")
