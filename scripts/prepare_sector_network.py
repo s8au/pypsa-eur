@@ -1088,7 +1088,7 @@ def add_EW(n,marg=1, eff=1, cap=1):
         p_nom_extendable=True,
         lifetime = 15,
     )
-def add_perennial(n, cap=1, marg=1):
+def add_perennial(n, cap=1, marg=1, eff=1):
     perennial_CO2_seq = (
         snakemake.config["perennials"]["yield_perennials"]
         / snakemake.config["perennials"]["potential_co2_perennials"]
@@ -1125,14 +1125,14 @@ def add_perennial(n, cap=1, marg=1):
         bus2=nodes.values,
         bus3=spatial.gas.biogas,
         efficiency=1,
-        efficiency2=-0.0733 * perennial_CO2_seq,  # -costs.at['perennials gbr', "electricity-input"] * perennial_CO2_seq,
-        efficiency3=0.33 * perennial_CO2_seq,  # costs.at['perennials gbr', "biomethane-output"] * perennial_CO2_seq,
+        efficiency2=-0.0733 * eff* perennial_CO2_seq, #-costs.at['perennials gbr', "electricity-input"] * perennial_CO2_seq,
+        efficiency3=0.195 * perennial_CO2_seq, #costs.at['perennials gbr', "biogas-output"] * perennial_CO2_seq,  
         carrier="perennial",
         p_nom_extendable=True,
         p_max_pu=p_max_pu,
-        capital_cost=4894 * cap * perennial_CO2_seq,  # costs.at['perennials gbr', "fixed"] * perennial_CO2_seq , --> hardocoded including FOM!
-        marginal_cost=(57.72 - 0.33 * costs.at["biogas manure", "fuel"]) * marg   * perennial_CO2_seq,  # (costs.at['perennials gbr', "VOM"] - costs.at['perennials gbr', "biomethane-output"] * costs.at['biogas manure', 'fuel']) * perennial_CO2_seq, # includes avoided cost for biogas feedstock
-        lifetime=25,  # costs.at['perennials gbr', "lifetime"],
+        capital_cost=117660 * cap * perennial_CO2_seq, #cap * costs.at['perennials gbr', "fixed"] * perennial_CO2_seq,
+        marginal_cost=43.23 * marg   * perennial_CO2_seq, #marg * costs.at['perennials gbr', "VOM"] * perennial_CO2_seq, 
+        lifetime=25, #costs.at['perennials gbr', "lifetime"],
     )
     print(n.links.efficiency2[n.links[n.links.carrier == "perennial"].index])
     print(n.links.capital_cost[n.links[n.links.carrier == "perennial"].index])
@@ -4768,7 +4768,7 @@ if __name__ == "__main__":
         add_EW(n, marg, eff, cap)
     
     if options["perennial"]:
-        add_perennial(n, cap, marg)
+        add_perennial(n, cap, marg, eff)
 
     if not options["electricity_transmission_grid"]:
         decentral(n)
