@@ -234,6 +234,77 @@ def average_every_nhours(n, offset):
 
     return m
 
+def aggregate_timeseries(timeseries_df, n_periods, hours, extremePeriodMethod,
+                         normed, clusterMethod, solver_name, predefClusterOrder):
+
+    """
+    aggregate timeseries with tsam module to a typical number of periods
+    (n_periods) with each a lenght of hours
+    Code adapted from Endogenous learning for green hydrogen in a sector-coupled energy model for Europe, Zeyen at al.
+    """
+
+    logger.info(f"Aggregating time series to {n_periods} segments with {hours} hours and {clusterMethod} method.")
+    try:
+        import tsam.timeseriesaggregation as tsam
+    except ImportError:
+        raise ModuleNotFoundError(
+            "Optional dependency 'tsam' not found." "Install via 'pip install tsam'"
+        )
+    
+    p_max_pu_norm = n.generators_t.p_max_pu.max()
+    p_max_pu = n.generators_t.p_max_pu / p_max_pu_norm
+
+    load_norm = n.loads_t.p_set.max()
+    load = n.loads_t.p_set / load_norm
+
+    inflow_norm = n.storage_units_t.inflow.max()
+    inflow = n.storage_units_t.inflow / inflow_norm
+
+    raw = pd.concat([p_max_pu, load, inflow], axis=1, sort=False)
+
+    agg = tsam.TimeSeriesAggregation(
+        raw,
+        noTypicalPeriods=n_periods,
+        extremePeriodMethod=extremePeriodMethod,
+        rescaleClusterPeriods=False,
+        hoursPerPeriod=hours,
+        clusterMethod=clusterMethod,
+        solver=solver_name,
+        predefClusterOrder=predefClusterOrder,
+    )
+
+    clustered = agg.createTypicalPeriods()
+    map_snapshots_to_periods = agg.indexMatching()
+    map_snapshots_to_periods["day_of_year"] = (map_snapshots_to_periods.index - map_snapshots_to_periods.index[0]).days + 1
+    cluster_weights = agg.clusterPeriodNoOccur
+    clusterCenterIndices= agg.clusterCenterIndices
+
+
+    # pandas Day of year starts at 1, clusterCenterIndices at 0
+    new_snapshots = map_snapshots_to_periods[(map_snapshots_to_periods
+                                                .day_of_year-1).isin(clusterCenterIndices)]
+    new_snapshots["weightings"] = new_snapshots["PeriodNum"].map(cluster_weights).astype(float)
+    clustered.set_index(new_snapshots.index, inplace=True)
+
+    # last hour of typical period
+    last_hour = new_snapshots[new_snapshots["TimeStep"]==hours-1]
+    # first hour
+    first_hour = new_snapshots[new_snapshots["TimeStep"]==0]
+
+    # add typical period name and last hour to mapping original snapshot-> typical
+    map_snapshots_to_periods["RepresentativeDay"] = map_snapshots_to_periods["PeriodNum"].map(last_hour.set_index(["PeriodNum"])["day_of_year"].to_dict())
+    map_snapshots_to_periods["last_hour_RepresentativeDay"] = map_snapshots_to_periods["PeriodNum"].map(last_hour.reset_index().set_index(["PeriodNum"])["snapshot"].to_dict())
+    map_snapshots_to_periods["first_hour_RepresentativeDay"] = map_snapshots_to_periods["PeriodNum"].map(first_hour.reset_index().set_index(["PeriodNum"])["snapshot"].to_dict())
+    n.cluster = map_snapshots_to_periods
+
+    n.set_snapshots(new_snapshots.index)
+    n.snapshot_weightings = n.snapshot_weightings.mul(new_snapshots.weightings, axis=0)
+    # if normed:
+    #     n.generators_t.p_max_pu = segmented[n.generators_t.p_max_pu.columns] * p_max_pu_norm
+    #     n.loads_t.p_set = segmented[n.loads_t.p_set.columns] * load_norm
+    #     n.storage_units_t.inflow = segmented[n.storage_units_t.inflow.columns] * inflow_norm
+
+    return n
 
 def apply_time_segmentation(n, segments, solver_name="cbc"):
     logger.info(f"Aggregating time series to {segments} segments.")
@@ -258,7 +329,7 @@ def apply_time_segmentation(n, segments, solver_name="cbc"):
     agg = tsam.TimeSeriesAggregation(
         raw,
         hoursPerPeriod=len(raw),
-        noTypicalPeriods=1,
+        noTypicalPeriods= 1,
         noSegments=int(segments),
         segmentation=True,
         solver=solver_name,
@@ -346,6 +417,9 @@ if __name__ == "__main__":
 
     # temporal averaging
     time_resolution = snakemake.params.time_resolution
+    print(time_resolution)
+
+
     is_string = isinstance(time_resolution, str)
     if is_string and time_resolution.lower().endswith("h"):
         n = average_every_nhours(n, time_resolution)
@@ -355,6 +429,13 @@ if __name__ == "__main__":
         solver_name = snakemake.config["solving"]["solver"]["name"]
         segments = int(time_resolution.replace("seg", ""))
         n = apply_time_segmentation(n, segments, solver_name)
+
+    if is_string and time_resolution.lower().endswith("segp"):
+        solver_name = snakemake.config["solving"]["solver"]["name"]
+        hours = int(time_resolution.split("h")[0])
+        segments = int(time_resolution.split("h")[1].replace("segp", ""))
+        n = aggregate_timeseries(n, segments, hours, "None",
+                                True, "hierarchical", solver_name, None)
 
     if snakemake.params.co2limit_enable:
         add_co2limit(n, snakemake.params.co2limit, Nyears)
