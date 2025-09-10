@@ -537,7 +537,8 @@ def calculate_prices(n, label, prices):
 
 def calculate_weighted_prices(n, label, weighted_prices):
     carriers = n.buses.carrier.unique()
-
+    print("here")
+    print(pypsa.statistics.groupers["bus", "carrier"])
     for carrier in carriers:
         load = n.statistics.withdrawal(
             groupby=pypsa.statistics.groupers["bus", "carrier"],

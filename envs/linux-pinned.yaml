@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Contributors to PyPSA-Eur <https://github.com/pypsa/pypsa-eur>
 # SPDX-License-Identifier: CC0-1.0
 
-name: pypsa-eur
+name: pypsa-eurv2025.01.0fix
 channels:
   - conda-forge
   - bioconda

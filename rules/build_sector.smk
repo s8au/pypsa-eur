@@ -495,7 +495,7 @@ rule build_biomass_potentials:
         ),
     threads: 8
     resources:
-        mem_mb=1000,
+        mem_mb=8000,
     log:
         logs("build_biomass_potentials_s_{clusters}_{planning_horizons}.log"),
     benchmark:
@@ -519,7 +519,8 @@ rule build_biochar_potentials:
     log:
         logs("build_biochar_potentials_s_{clusters}.log"),
     resources:
-        mem_mb = 5000,
+        mem_mb = 16000,
+        disk_mb = 2000,
     conda:
         "../envs/environment.yaml"
     script:
@@ -560,7 +561,7 @@ rule build_afforestation_potentials:
     log:
         logs("build_afforestation_potentials_s_{clusters}.log"),
     resources:
-        mem_mb = 5000,
+        mem_mb = 16000,
     conda:
         "../envs/environment.yaml"
     script:
