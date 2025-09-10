@@ -196,9 +196,11 @@ rule build_temperature_profiles:
         pop_layout=resources("pop_layout_total.nc"),
         regions_onshore=resources("regions_onshore_base_s_{clusters}.geojson"),
         cutout=heat_demand_cutout,
+        #cutout_dp="cutouts/"+ CDIR + "europe-2013-era5.nc",
     output:
         temp_soil=resources("temp_soil_total_base_s_{clusters}.nc"),
         temp_air=resources("temp_air_total_base_s_{clusters}.nc"),
+        #temp_dp=resources("temp_dp_total_base_s_{clusters}.nc"),
     resources:
         mem_mb=20000,
     threads: 8
@@ -430,24 +432,6 @@ rule build_biomass_potentials:
     script:
         "../scripts/build_biomass_potentials.py"
 
-rule build_EW_potentials:
-    params:
-        component = "EW",
-    input:
-        corine_dataset = "data/bundle/corine/g250_clc06_V18_5.tif",
-        network_geojson = resources("regions_onshore_base_s_{clusters}.geojson"),
-        bioclimate_dataset = "data/World_Ecological_BioVal_cluster.tif",
-    output:
-        csv_file = resources("EW_potentials_s_{clusters}.csv"),
-        png_file = resources("EW_potentials_s_{clusters}.png"),
-    log:
-        logs("build_EW_potentials_s_{clusters}.log"),
-    resources:
-        mem_mb = 10000, #5000,
-    conda:
-        "../envs/environment.yaml"
-    script:
-        "../scripts/build_potentials_EW.py"
 
 rule build_biomass_transport_costs:
     input:
@@ -1085,11 +1069,6 @@ rule prepare_sector_network:
             )
             if config_provider("foresight")(w) == "overnight"
             else resources("biomass_potentials_s_{clusters}_{planning_horizons}.csv")
-        ),
-        EW_potentials=lambda w: (
-            resources("EW_potentials_s_{clusters}.csv")
-            if config_provider("sector", "EW")(w)
-            else []
         ),
         costs=lambda w: (
             resources("costs_{}.csv".format(config_provider("costs", "year")(w)))

@@ -40,6 +40,7 @@ from prepare_network import maybe_adjust_costs_and_potentials
 from pypsa.geo import haversine_pts
 from pypsa.io import import_components_from_dataframe
 from scipy.stats import beta
+from temporal_clustering import aggregate_snapshots
 
 spatial = SimpleNamespace()
 logger = logging.getLogger(__name__)
@@ -774,9 +775,159 @@ def add_allam_gas(n, costs):
     )
 
 
-def add_biomass_to_methanol(n, costs):
+def add_biochar(n, costs):
+    logger.info("Adding biochar.")
+
+
+    # read biochar potentials from CSV file
+    biochar_potentials = pd.read_csv(snakemake.input.biochar_potentials).set_index("node")
+
+
+    # add CO2 biochar buses
+    n.madd("Bus",
+           spatial.nodes + " co2 biochar",
+           carrier = "co2 biochar",
+           unit = "t_co2"
+          )
+
+
+    # add CO2 biochar stores
+    co2_per_tonne = 1/costs.at["biochar pyrolysis", "biomass input"] * 1/costs.at["biochar pyrolysis", "yield-biochar"] # tCO2 / tbiochar
+    n.madd("Store",
+           spatial.nodes + " co2 biochar",
+           bus = spatial.nodes + " co2 biochar",
+           carrier = "co2 biochar",
+           e_nom_extendable = True,
+           e_nom_max = biochar_potentials["potential"].values * co2_per_tonne * snakemake.config["biochar"]["co2_per_tonne_multiplier"] * snakemake.config["biochar"]["max_land_usage"]
+          )
+
+
+    # add CO2 biochar links
+    for node in spatial.nodes:
+        if len(spatial.biomass.nodes) == 1:
+            biomass_bus = spatial.biomass.nodes[0]
+        else:
+            biomass_bus = node + " solid biomass"
+        if snakemake.config["sector"]["biochar"]["heat_output"] and (node + " urban central heat") in n.buses.index:
+            heat_bus = node + " urban central heat"
+        else:
+            heat_bus = None
+
+        n.add("Link",
+              node + " biochar",
+              bus0 = "co2 atmosphere",
+              bus1 = node + " co2 biochar",
+              bus2 = biomass_bus,
+              bus3 = node,
+              bus4 = heat_bus,
+              carrier = "co2 biochar",
+              capital_cost = costs.at["biochar pyrolysis", "fixed"],
+              marginal_cost = costs.at["biochar pyrolysis", "VOM"],
+              efficiency = 1,
+              efficiency2 = -costs.at["biochar pyrolysis", "biomass input"],
+              efficiency3 = -costs.at["biochar pyrolysis", "electricity input"],
+              efficiency4 = costs.at["biochar pyrolysis", "heat output"],
+              p_nom_extendable = True
+             )
+
+
+def add_perennials(n, costs):
+
+    logger.info("Adding perennials.")
+
+    perennial_CO2_seq = (
+        snakemake.config["perennials"]["yield"]
+        / snakemake.config["perennials"]["potential_co2"]
+    )  # tDM perennials / tCO2e sequestred
+
+    nodes = pop_layout.index
+    n.add("Carrier", "perennials")
+    n.add("Carrier", "perennials store")
 
     n.madd(
+        "Bus",
+        nodes + " perennials co2 store",
+        location=nodes,
+        carrier="perennials store",
+        unit="t_co2",
+    )
+
+
+    df_gbr = pd.DataFrame(index=n.snapshots, columns=["harvest"])
+    df_gbr["harvest"] = df_gbr.index.month.isin([4, 5, 6, 7, 8, 9, 10]).astype(int)
+    p_max_pu = pd.DataFrame(index=n.snapshots, columns=nodes)
+
+    for node in nodes:
+        p_max_pu[node] = df_gbr["harvest"]
+
+    n.madd(
+        "Link",
+        nodes,
+        suffix=" perennials GBR",
+        bus0="co2 atmosphere",
+        bus1=nodes + " perennials co2 store",
+        bus2=nodes.values,
+        bus3=spatial.gas.biogas,
+        efficiency=1,
+        efficiency2=-costs.at['perennials gbr', "electricity-input"] * perennial_CO2_seq,
+        efficiency3=costs.at['perennials gbr', "biogas-output"] * perennial_CO2_seq,  
+        carrier="perennials",
+        p_nom_extendable=True,
+        p_max_pu=p_max_pu,
+        capital_cost=costs.at['perennials gbr', "fixed"] * perennial_CO2_seq,
+        marginal_cost=costs.at['perennials gbr', "VOM"] * perennial_CO2_seq, 
+        lifetime=costs.at['perennials gbr', "lifetime"],
+    )
+
+    biomass_potentials = pd.read_csv(snakemake.input.biomass_potentials, index_col=0)
+
+    perennials_potentials_spatial = (
+        (
+            biomass_potentials.filter(regex='biofuels_1G')
+            / snakemake.config["perennials"]["yield_biofuels_1G"]
+        ).sum(axis=1)
+        * snakemake.config["perennials"]["potential_co2"]
+    )  # potential tCO2e seq
+
+    n.madd(
+        "Store",
+        nodes,
+        suffix=" CO2s_perennials",
+        bus=nodes + " perennials co2 store",
+        e_nom_extendable=True,  
+        e_nom_max=perennials_potentials_spatial, 
+        carrier="perennials store",
+        e_cyclic=False,
+    )
+
+
+def add_EW(n, costs):
+
+    logger.info("Adding EW.")
+
+    nodes = pop_layout.index
+    n.add("Carrier", "EW")
+    n.add("Carrier", "EW store")
+
+    n.add(
+        "Bus", nodes + " EW co2 store", location=nodes, carrier="EW", unit="t_co2",
+    )
+    EW_potentials = pd.read_csv(snakemake.input.EW_potentials, index_col=0)
+    EW_potentials = EW_potentials.sum(axis=1)*snakemake.config["EW"]["max_land_usage"]
+
+    n.add(
+        "Store",
+        nodes,
+        suffix=" EW co2 store",
+        bus=nodes + " EW co2 store",
+        e_nom = EW_potentials,
+        carrier="EW store",
+    )
+    print(costs.at["Enhanced Weathering", "VOM"])
+    print(costs.at["Enhanced Weathering", "VOM"]/costs.at["Enhanced Weathering", "electricity-input"])
+
+def add_biomass_to_methanol(n, costs):
+    n.add(
         "Link",
         spatial.biomass.nodes,
         suffix=" biomass-to-methanol",
@@ -1036,7 +1187,7 @@ def add_dac(n, costs, hi=-1, ei=-1):
     if ei > 0:
        electricity_input = ei
     print("H, EI-----------",hi, ei)
-    n.madd(
+    n.add(
         "Link",
         heat_buses.str.replace(" heat", " DAC"),
         bus0=locations.values,
@@ -1052,43 +1203,131 @@ def add_dac(n, costs, hi=-1, ei=-1):
         lifetime=costs.at["direct air capture", "lifetime"],
     )
 
+def add_dac_prisma(n, costs, hi=-1, ei=-1, dac_file="dac_lewatit"):
+    heat_carriers = ["urban central heat", "services urban decentral heat"]
+    heat_buses = n.buses.index[n.buses.carrier.isin(heat_carriers)]
+    locations = n.buses.location[heat_buses]
 
-def add_EW(n,marg=1, eff=1, cap=1):
-    nodes = pop_layout.index
-    n.add("Carrier", "EW")
-    n.add("Carrier", "EW store")
+    # electricity_input = (
+    #     costs.at["direct air capture", "electricity-input"]
+    #     + costs.at["direct air capture", "compression-electricity-input"]
+    # )  # MWh_el / tCO2
+    # heat_input = (
+    #     costs.at["direct air capture", "heat-input"]
+    # )  # MWh_th / tCO2
 
-    n.madd(
-        "Bus", nodes + " EW co2 store", location=nodes, carrier="EW", unit="t_co2",
-    )
-    EW_potentials = pd.read_csv(snakemake.input.EW_potentials, index_col=0)
-    EW_potentials = EW_potentials.sum(axis=1)*snakemake.config["EW"]["max_land_usage"]
-    print(EW_potentials)
+    costs_dac = pd.read_csv(f"data/{dac_file}/fixed.csv", index_col=0)
+    loc  = locations.copy()
+    loc.index = loc.index.str.replace(" heat", " DAC")
+ 
+    costs_dac = costs_dac.merge(loc, left_index=True, right_on="location", how='right')
+    electricityinput = pd.read_csv(f"data/{dac_file}/electricity-input.csv", index_col=0)
+    electricitycompression_input = pd.read_csv(f"data/{dac_file}/compression-electricity-input.csv", index_col=0)
+    electricity_input = electricityinput + electricitycompression_input
+    electricity_input.columns = electricity_input.columns.str[:3]
+    electricity_input = electricity_input.loc[:,~electricity_input.columns.duplicated()].copy()
+    electricity_input_dac = pd.DataFrame(index=pd.to_datetime(n.snapshots))
+    for loc in locations.unique():
+        if not electricity_input.filter(like=loc[:3]).empty:
+            electricity_input_dac[loc]=electricity_input.filter(like=loc[:3])
+    heat_input =pd.read_csv(f"data/{dac_file}/heat-input.csv", index_col=0)
+    heat_input.columns = heat_input.columns.str[:3]
+    heat_input = heat_input.loc[:,~heat_input.columns.duplicated()].copy()
+    heat_input_dac = pd.DataFrame(index=pd.to_datetime(n.snapshots))
+    for loc in locations.unique():
+        if not heat_input.filter(like=loc[:3]).empty:
+            heat_input_dac[loc]=heat_input.filter(like=loc[:3])
+    print(len(costs_dac.index))
+    print(len(locations.index))
+    
+    print(electricity_input.columns, heat_input.columns)
+    
+    costs_dac = (pd.read_csv(f"data/{dac_file}/fixed.csv", index_col=0)
+                   .merge(locations, left_index=True, right_on="location",
+                          how="right"))
 
-    n.madd(
-        "Store",
-        nodes,
-        suffix=" EW co2 store",
-        bus=nodes + " EW co2 store",
-        e_nom = EW_potentials,
-        carrier="EW store",
-    )
+    # # electricity & heat inputs, already shaped as [snapshot × location]
+    ei  = (pd.read_csv(f"data/{dac_file}/electricity-input.csv", index_col=0) +
+              pd.read_csv(f"data/{dac_file}/compression-electricity-input.csv",
+                           index_col=0))
+    hi  = pd.read_csv(f"data/{dac_file}/heat-input.csv", index_col=0)
 
-    n.madd(
+    # # keep only the three-letter country code, drop duplicate columns
+    for df in (ei, hi):
+        df.columns = df.columns.str[:3]
+        df.index = pd.to_datetime(df.index)
+    ei = ei.loc[:,~ei.columns.duplicated()]
+    hi = hi.loc[:,~hi.columns.duplicated()]
+    link_names = heat_buses.str.replace(" heat", " DAC")
+
+    # 2 – construct an empty ts-frame with the right shape
+    efficiency     = pd.DataFrame(index=n.snapshots, columns=link_names, dtype=float)
+    efficiency2    = efficiency.copy()
+    efficiency3    = efficiency.copy()
+
+    # 3 – fill it column–by–column
+    for bus, link, loc in zip(heat_buses, link_names, locations):
+        cc = loc[:3]                      # country code
+        if cc in ei.columns:
+            efficiency[link]  = -hi[cc] / ei[cc]
+            efficiency2[link] = -1 / ei[cc]
+            efficiency3[link] =  1 / ei[cc]
+    print(costs_dac['fixed'].values, costs_dac['fixed'].values *efficiency3.mean())
+    print(hi, ei)
+    print(efficiency, efficiency3)
+    n.add(
         "Link",
-        nodes,
-        suffix= " EW",
-        bus0=nodes.values,
-        bus1="co2 atmosphere",
-        bus2= nodes + " EW co2 store",
-        carrier = "EW",
-        capital_cost = cap* costs.at["Enhanced Weathering", "investment"]/costs.at["Enhanced Weathering", "electricity-input"],
-        marginal_cost = marg *costs.at["Enhanced Weathering", "VOM"]/costs.at["Enhanced Weathering", "electricity-input"],
-        efficiency=-1/costs.at["Enhanced Weathering", "electricity-input"]*eff, 
-        efficiency2=1/costs.at["Enhanced Weathering", "electricity-input"]*eff,
+        heat_buses.str.replace(" heat", " DAC"),
+        bus0=locations.values,
+        bus1=heat_buses,
+        bus2="co2 atmosphere",
+        bus3=spatial.co2.df.loc[locations, "nodes"].values,
+        carrier="DAC",
+        capital_cost=costs_dac['fixed'].values *efficiency3.mean().values,
+        efficiency= efficiency, #-heat_input_dac / electricity_input_dac,
+        efficiency2=efficiency2, #-1 / electricity_input_dac,
+        efficiency3=efficiency3, #1 / electricity_input_dac,
         p_nom_extendable=True,
-        lifetime = costs.at["Enhanced Weathering", "lifetime"],
+        lifetime=costs.at["direct air capture", "lifetime"],
     )
+    
+    print("DAC capital  costs",n.links.capital_cost.filter(like="DAC")/n.links.efficiency3.filter(like="DAC"))
+# def add_EW(n,marg=1, eff=1, cap=1):
+#     nodes = pop_layout.index
+#     n.add("Carrier", "EW")
+#     n.add("Carrier", "EW store")
+
+#     n.add(
+#         "Bus", nodes + " EW co2 store", location=nodes, carrier="EW", unit="t_co2",
+#     )
+#     EW_potentials = pd.read_csv(snakemake.input.EW_potentials, index_col=0)
+#     EW_potentials = EW_potentials.sum(axis=1)*snakemake.config["EW"]["max_land_usage"]
+#     print(EW_potentials)
+
+#     n.add(
+#         "Store",
+#         nodes,
+#         suffix=" EW co2 store",
+#         bus=nodes + " EW co2 store",
+#         e_nom = EW_potentials,
+#         carrier="EW store",
+#     )
+
+#     n.add(
+#         "Link",
+#         nodes,
+#         suffix= " EW",
+#         bus0=nodes.values,
+#         bus1="co2 atmosphere",
+#         bus2= nodes + " EW co2 store",
+#         carrier = "EW",
+#         capital_cost = cap* costs.at["Enhanced Weathering", "investment"]/costs.at["Enhanced Weathering", "electricity-input"],
+#         marginal_cost = marg *costs.at["Enhanced Weathering", "VOM"]/costs.at["Enhanced Weathering", "electricity-input"],
+#         efficiency=-1/costs.at["Enhanced Weathering", "electricity-input"]*eff, 
+#         efficiency2=1/costs.at["Enhanced Weathering", "electricity-input"]*eff,
+#         p_nom_extendable=True,
+#         lifetime = costs.at["Enhanced Weathering", "lifetime"],
+#     )
     
 
 def add_co2limit(n, options, nyears=1.0, limit=0.0):
@@ -3207,6 +3446,7 @@ def add_biomass(n, costs):
 
 def add_industry(n, costs):
     logger.info("Add industrial demand")
+    
     # add oil buses for shipping, aviation and naptha for industry
     add_carrier_buses(n, "oil")
     # add methanol buses for industry
@@ -4583,6 +4823,13 @@ if __name__ == "__main__":
             sector_opts="",
             planning_horizons="2030",
         )
+	
+    configure_logging(snakemake)
+    set_scenario_config(snakemake)
+    update_config_from_wildcards(snakemake.config, snakemake.wildcards)
+
+    options = snakemake.params.sector
+    cf_industry = snakemake.params.industry
 
     opts = snakemake.wildcards.sector_opts.split("-")
     hi = -1
@@ -4602,13 +4849,13 @@ if __name__ == "__main__":
             marg = float(o.split("+")[-1])
         if "cap" in o:
             cap = float(o.split("+")[-1])
-	
-    configure_logging(snakemake)
-    set_scenario_config(snakemake)
-    update_config_from_wildcards(snakemake.config, snakemake.wildcards)
-
-    options = snakemake.params.sector
-    cf_industry = snakemake.params.industry
+        if "prisma" in o:
+            options["dac_prisma"] = True
+            options["dac"] = False
+        if "MOF" in o:
+            dac_file = "dac_MOF"
+        if "Lewatit" in  o:
+            dac_file = "dac_lewatit"
 
     investment_year = int(snakemake.wildcards.planning_horizons)
 
@@ -4623,7 +4870,7 @@ if __name__ == "__main__":
         snakemake.params.costs,
         nyears,
     )
-
+    print("DAC fixed",costs.at["direct air capture", "fixed"])
     pop_weighted_energy_totals = (
         pd.read_csv(snakemake.input.pop_weighted_energy_totals, index_col=0) * nyears
     )
@@ -4687,8 +4934,11 @@ if __name__ == "__main__":
     if options["dac"]:
         add_dac(n, costs, hi, ei)
 
-    if options["EW"]:
-        add_EW(n, marg, eff, cap)
+    if options["dac_prisma"]:
+        add_dac_prisma(n, costs, hi, ei, dac_file)
+
+    # if options["EW"]:
+    #     add_EW(n, marg, eff, cap)
 
     if not options["electricity_transmission_grid"]:
         decentral(n)
@@ -4764,6 +5014,19 @@ if __name__ == "__main__":
     if options["cluster_heat_buses"] and not first_year_myopic:
         cluster_heat_buses(n)
 
+    
+    if opts[0].endswith("segp"):
+        solver_name = snakemake.config["solving"]["solver"]["name"]
+        hours = int(opts[0].split("h")[0])
+        segments = int(opts[0].split("h")[1].replace("segp", ""))
+        weighted_before = n.loads_t.p_set.mul(n.snapshot_weightings["generators"], axis=0).sum()
+        print(weighted_before)
+        n = aggregate_snapshots(n, segments, hours, True, solver_name,
+                        "None", 'hierarchical',
+                        None, True)
+        weighted_after = n.loads_t.p_set.mul(n.snapshot_weightings["generators"], axis=0).sum()
+        print(weighted_after)
+
     maybe_adjust_costs_and_potentials(
         n, snakemake.params["adjustments"], investment_year
     )
@@ -4772,5 +5035,6 @@ if __name__ == "__main__":
 
     sanitize_carriers(n, snakemake.config)
     sanitize_locations(n)
-
+    weighted_after = n.loads_t.p_set.mul(n.snapshot_weightings["generators"], axis=0).sum()
+    print(weighted_after)
     n.export_to_netcdf(snakemake.output[0])

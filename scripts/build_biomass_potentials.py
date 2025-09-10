@@ -45,7 +45,7 @@ def _calc_unsustainable_potential(df, df_unsustainable, share_unsus, resource_ty
         resource_potential = df_unsustainable.filter(regex=resource_type).sum(axis=1)
     else:
         resource_potential = df_unsustainable[resource_type]
-
+    print("bla",df, resource_potential)
     return (
         df.apply(
             lambda c: c.sum()

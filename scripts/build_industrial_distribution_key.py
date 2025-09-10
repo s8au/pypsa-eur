@@ -410,5 +410,18 @@ if __name__ == "__main__":
     keys = build_nodal_distribution_key(
         hotmaps, gem, ammonia, cement, refineries, regions, countries
     )
+    
+
+    # added for one country run that does not include all sectors
+    nodes = keys.index
+    expected_sectors = ["Iron and steel",	"Cement",	"Refineries",	"Paper and printing", 
+                        	"Chemical industry", "Glass", "Non-ferrous metals","Non-metallic mineral products","Other non-classified",
+                            "population","EAF","DRI + EAF","Integrated steelworks", "Ammonia"
+                        ]
+
+    for sector in expected_sectors:
+        if sector not in keys.columns:
+            keys[sector] = 0
+
 
     keys.to_csv(snakemake.output.industrial_distribution_key)

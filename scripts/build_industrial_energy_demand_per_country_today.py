@@ -293,6 +293,7 @@ if __name__ == "__main__":
     countries = pd.Index(snakemake.params.countries)
 
     demand = industrial_energy_demand(countries.intersection(eu27), year)
+    print(demand.head())
 
     # output in MtMaterial/a
     production = (
