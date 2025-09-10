@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-# SPDX-FileCopyrightText: : 2024 The PyPSA-Eur Authors
+# SPDX-FileCopyrightText: Contributors to PyPSA-Eur <https://github.com/pypsa/pypsa-eur>
 #
 # SPDX-License-Identifier: MIT
 """
@@ -28,7 +27,8 @@ if __name__ == "__main__":
     if "/" in version:
         baseurl = f"https://raw.githubusercontent.com/{version}/outputs/"
     else:
-        baseurl = f"https://raw.githubusercontent.com/PyPSA/technology-data/{version}/outputs/"
+        #baseurl = f"https://raw.githubusercontent.com/PyPSA/technology-data/{version}/outputs/"
+    	baseurl = "https://raw.githubusercontent.com/BertoGBG/technology-data/refs/heads/CO2_stores_latest/outputs/"
     filepath = Path(snakemake.output[0])
     url = baseurl + filepath.name
 

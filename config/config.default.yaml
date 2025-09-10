@@ -1,9 +1,9 @@
-# SPDX-FileCopyrightText: : 2017-2024 The PyPSA-Eur Authors
+# SPDX-FileCopyrightText: Contributors to PyPSA-Eur <https://github.com/pypsa/pypsa-eur>
 #
 # SPDX-License-Identifier: CC0-1.0
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#top-level-configuration
-version: 0.13.0
+version: v2025.01.0
 tutorial: false
 
 logging:
@@ -37,8 +37,6 @@ foresight: overnight
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#scenario
 # Wildcard docs in https://pypsa-eur.readthedocs.io/en/latest/wildcards.html
 scenario:
-  ll:
-  - vopt
   clusters:
   - 39
   - 128
@@ -74,19 +72,19 @@ enable:
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#co2-budget
 co2_budget:
-  2020: 0.701
-  2025: 0.524
-  2030: 0.297
-  2035: 0.150
-  2040: 0.071
-  2045: 0.032
-  2050: 0.000
+  2020: 0.720 # average emissions of 2019 to 2021 relative to 1990, CO2 excl LULUCF, EEA data, European Environment Agency. (2023a). Annual European Union greenhouse gas inventory 1990–2021 and inventory report 2023 - CRF Table. https://unfccc.int/documents/627830
+  2025: 0.648 # With additional measures (WAM) projection, CO2 excl LULUCF, European Environment Agency. (2023e). Member States’ greenhouse gas (GHG) emission projections 2023. https://www.eea.europa.eu/en/datahub/datahubitem-view/4b8d94a4-aed7-4e67-a54c-0623a50f48e8
+  2030: 0.450 # 55% reduction by 2030 (Ff55)
+  2035: 0.250
+  2040: 0.100 # 90% by 2040
+  2045: 0.050
+  2050: 0.000 # climate-neutral by 2050
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#electricity
 electricity:
-  voltages: [200., 220., 300., 380., 500., 750.]
+  voltages: [220., 300., 330., 380., 400., 500., 750.]
   base_network: osm-prebuilt
-  osm-prebuilt-version: 0.4
+  osm-prebuilt-version: 0.6
   gaslimit_enable: false
   gaslimit: false
   co2limit_enable: false
@@ -109,7 +107,7 @@ electricity:
     Store: [battery, H2]
     Link: [] # H2 pipeline
 
-  powerplants_filter: (DateOut >= 2023 or DateOut != DateOut) and not (Country == 'Germany' and Fueltype == 'Nuclear')
+  powerplants_filter: (DateOut >= 2024 or DateOut != DateOut) and not (Country == 'Germany' and Fueltype == 'Nuclear')
   custom_powerplants: false
   everywhere_powerplants: []
 
@@ -129,6 +127,8 @@ electricity:
   autarky:
     enable: false
     by_country: false
+
+  transmission_limit: vopt
 
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#atlite
 atlite:
@@ -268,6 +268,70 @@ renewable:
     eia_correct_by_capacity: false
     eia_approximate_missing: false
 
+biochar:
+  corine: [12, 13, 14] # CORINE Land Cover (CLC) codes that can be used for biochar
+  potential_per_sqkm: 2000 # in tonnes (of biochar) (20t/ha)
+  co2_per_tonne_multiplier: 1 # in tonnes multiplier * (0.85 (tC/tbiochar) * 0.7 (%biochar >100y) * 44/12)
+  max_land_usage: 0.2 # in percentage (in 2050)
+
+perennials:
+  yield: 15 # tDM perennials/ha/y
+  potential_co2: 2 # tCO2e/ha/y sequestred
+  yield_biofuels_1G: [38.1, 22.3, 11.9] # MWh/ha [Bioethanol barley, Sugar beet, Rape seed]
+
+EW:
+  EW_hot: 
+    corine: [12, 13]
+    potential_per_sqkm: 839 # in tonnes
+    co2_per_tonne:  # in tonnes
+    climate: [23, 24, 28, 33, 34, 36]
+  EW_temperate:
+    corine: [12, 13]
+    potential_per_sqkm: 309 # in tonnes
+    co2_per_tonne: # in tonnes   
+    climate: [10, 11, 14, 15]
+  max_land_usage: 0.2 # in percentage
+
+afforestation:
+  corine: [29] # CORINE Land Cover (CLC) codes that can be used for afforestation
+  potential_per_sqkm: # in tonnes (of dry biomass)
+    'AL': 9427
+    'AT': 18672
+    'BA': 12164
+    'BE': 17870
+    'BG': 11392
+    'CH': 19683
+    'CZ': 20992
+    'DE': 20423
+    'DK': 12016
+    'EE': 10892
+    'ES': 6205
+    'FI': 6677
+    'FR': 14731
+    'GB': 11536
+    'GR': 5179
+    'HR': 18984
+    'HU': 14856
+    'IE': 11733
+    'IT': 10798
+    'LT': 14467
+    'LU': 16979
+    'LV': 13160
+    'ME': 11715
+    'MK': 9566
+    'NL': 19282
+    'NO': 6633
+    'PL': 18192
+    'PT': 4293
+    'RO': 19748
+    'RS': 11755
+    'SE': 7475
+    'SI': 21380
+    'SK': 21551
+    'XK': 11700 # given that no datapoint exists for Kosovo, the average value across Europe is taken instead
+  co2_per_tonne: 1.83 # in tonnes (0.5 * 44.01 / 12.01)
+  max_land_usage: 0.5 # in percentage
+
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#conventional
 conventional:
   unit_commitment: false
@@ -278,10 +342,11 @@ conventional:
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#lines
 lines:
   types:
-    200.: "Al/St 240/40 2-bundle 200.0"
     220.: "Al/St 240/40 2-bundle 220.0"
     300.: "Al/St 240/40 3-bundle 300.0"
+    330.: "Al/St 240/40 3-bundle 300.0"
     380.: "Al/St 240/40 4-bundle 380.0"
+    400.: "Al/St 240/40 4-bundle 380.0"
     500.: "Al/St 240/40 4-bundle 380.0"
     750.: "Al/St 560/50 4-bundle 750.0"
   s_max_pu: 0.7
@@ -393,6 +458,12 @@ biomass:
     - Poplar
     - FuelwoodRW
     - C&P_RW
+    biofuels_1Gbioethanol:
+    - Bioethanol barley, wheat, grain maize, oats, other cereals and rye
+    biofuels_1Gsugar:
+    - Sugar from sugar beet
+    biofuels_1Grs:
+    - Rape seed
     biogas:
     - Manure solid, liquid
     - Sludge
@@ -456,7 +527,7 @@ sector:
       2050: 1.0
     district_heating_loss: 0.15
     supply_temperature_approximation:
-      max_forward_temperature:
+      max_forward_temperature_baseyear:
         FR: 110
         DK: 75
         DE: 109
@@ -465,19 +536,32 @@ sector:
         PL: 130
         SE: 102
         IT: 90
-      min_forward_temperature:
+      min_forward_temperature_baseyear:
         DE: 82
-      return_temperature:
+      return_temperature_baseyear:
         DE: 58
       lower_threshold_ambient_temperature: 0
       upper_threshold_ambient_temperature: 10
       rolling_window_ambient_temperature: 72
+      relative_annual_temperature_reduction: 0.01
     heat_source_cooling: 6 #K
     heat_pump_cop_approximation:
       refrigerant: ammonia
       heat_exchanger_pinch_point_temperature_difference: 5 #K
       isentropic_compressor_efficiency: 0.8
       heat_loss: 0.0
+    heat_utilisation_potentials:
+      geothermal:
+        # activate for 85C hydrothermal
+        # key: hydrothermal_85
+        # constant_temperature_celsius: 85
+        key: hydrothermal_65
+        constant_temperature_celsius: 65
+        column_name: Energy_TWh
+        unit: TWh
+        full_load_hours: 4000
+    direct_utilisation_heat_sources:
+    - geothermal
   heat_pump_sources:
     urban central:
     - air
@@ -497,7 +581,7 @@ sector:
   EV_lower_degree_factor: 0.98
   EV_upper_degree_factor: 0.63
   bev_dsm: true
-  bev_availability: 0.5
+  bev_dsm_availability: 0.5
   bev_energy: 0.05
   bev_charge_efficiency: 0.9
   bev_charge_rate: 0.011
@@ -596,8 +680,12 @@ sector:
   overdimension_heat_generators:
     decentral: 1.1  #to cover demand peaks bigger than data
     central: 1.0
-  chp: true
-  micro_chp: false
+  chp:
+    enable: true
+    fuel:
+    - solid biomass # For solid biomass, CHP with and without CC are added
+    - gas # For all other fuels the same techno economic data from gas CHP is taken
+    micro_chp: false # Only gas is used for micro_chp
   solar_thermal: true
   solar_cf_correction: 0.788457  # =  >>> 1/1.2683
   marginal_cost_storage: 0. #1e-4
@@ -635,7 +723,7 @@ sector:
   co2_sequestration_cost: 10
   co2_sequestration_lifetime: 50
   co2_spatial: false
-  co2network: false
+  co2_network: false
   co2_network_cost_factor: 1
   cc_fraction: 0.9
   hydrogen_underground_storage: true
@@ -698,6 +786,13 @@ sector:
   biosng: false
   biosng_cc: false
   bioH2: false
+  biochar:
+    enable: false
+    heat_output: false
+    transport: false
+  perennials: false
+  EW: false
+  afforestation: false
   municipal_solid_waste: false
   limit_max_growth:
     enable: false
@@ -821,7 +916,7 @@ industry:
 # docs in https://pypsa-eur.readthedocs.io/en/latest/configuration.html#costs
 costs:
   year: 2030
-  version: v0.9.2
+  version: v0.10.1
   social_discountrate: 0.02
   fill_values:
     FOM: 0
@@ -993,6 +1088,12 @@ solving:
       Crossover: 0
     cbc-default: {} # Used in CI
     glpk-default: {} # Used in CI
+
+  check_objective:
+    enable: false
+    expected_value: None
+    atol: 1_000_000
+    rtol: 0.01
 
   mem_mb: 30000 #memory in MB; 20 GB enough for 50+B+I+H2; 100 GB for 181+B+I+H2
   runtime: 6h #runtime in humanfriendly style https://humanfriendly.readthedocs.io/en/latest/
@@ -1222,8 +1323,11 @@ plotting:
     services urban decentral air heat pump: '#5af95d'
     services rural air heat pump: '#5af95d'
     urban central air heat pump: '#6cfb6b'
+    urban central geothermal heat pump: '#4f2144'
+    geothermal heat pump: '#4f2144'
+    geothermal heat direct utilisation: '#ba91b1'
     ground heat pump: '#2fb537'
-    residential rural ground heat pump: '#48f74f'
+    residential rural ground heat pump: '#4f2144'
     residential rural air heat pump: '#48f74f'
     services rural ground heat pump: '#5af95d'
     Ambient: '#98eb9d'
@@ -1302,6 +1406,17 @@ plotting:
     co2: '#f29dae'
     co2 vent: '#ffd4dc'
     CO2 pipeline: '#f5627f'
+    biochar: '#007000'
+    biochar heat: '#007000'
+    biochar transport: '#007000'
+    co2 biochar: '#007000'
+    perennial: '#008ffc'
+    perennial store: '#613700'
+    perennials: '#008ffc'
+    perennials store: '#613700'
+    EW: '#ab6ae9'
+    EW store: '#fcba00'
+    co2 afforestation: '#22cc22'
     # emissions
     process emissions CC: '#000000'
     process emissions: '#222222'

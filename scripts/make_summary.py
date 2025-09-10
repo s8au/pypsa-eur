@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-# SPDX-FileCopyrightText: : 2020-2024 The PyPSA-Eur Authors
+# SPDX-FileCopyrightText: Contributors to PyPSA-Eur <https://github.com/pypsa/pypsa-eur>
 #
 # SPDX-License-Identifier: MIT
 """
@@ -209,18 +208,15 @@ def calculate_cumulative_cost():
     # integrate cost throughout the transition path
     for r in cumulative_cost.columns:
         for cluster in cumulative_cost.index.get_level_values(level=0).unique():
-            for ll in cumulative_cost.index.get_level_values(level=1).unique():
-                for sector_opts in cumulative_cost.index.get_level_values(
-                    level=2
-                ).unique():
-                    cumulative_cost.loc[
-                        (cluster, ll, sector_opts, "cumulative cost"), r
-                    ] = np.trapz(
+            for sector_opts in cumulative_cost.index.get_level_values(level=1).unique():
+                cumulative_cost.loc[(cluster, sector_opts, "cumulative cost"), r] = (
+                    np.trapz(
                         cumulative_cost.loc[
-                            idx[cluster, ll, sector_opts, planning_horizons], r
+                            idx[cluster, sector_opts, planning_horizons], r
                         ].values,
                         x=planning_horizons,
                     )
+                )
 
     return cumulative_cost
 
@@ -725,7 +721,7 @@ def make_summaries(networks_dict):
 
     columns = pd.MultiIndex.from_tuples(
         networks_dict.keys(),
-        names=["cluster", "ll", "opt", "planning_horizon"],
+        names=["cluster", "opt", "planning_horizon"],
     )
 
     df = {output: pd.DataFrame(columns=columns, dtype=float) for output in outputs}
@@ -748,6 +744,7 @@ def to_csv(df):
         df[key].to_csv(snakemake.output[key])
 
 
+# %%
 if __name__ == "__main__":
     if "snakemake" not in globals():
         from _helpers import mock_snakemake
@@ -758,13 +755,12 @@ if __name__ == "__main__":
     set_scenario_config(snakemake)
 
     networks_dict = {
-        (cluster, ll, opt + sector_opt, planning_horizon): "results/"
+        (cluster, opt + sector_opt, planning_horizon): "results/"
         + snakemake.params.RDIR
-        + f"/postnetworks/base_s_{cluster}_l{ll}_{opt}_{sector_opt}_{planning_horizon}.nc"
+        + f"/networks/base_s_{cluster}_{opt}_{sector_opt}_{planning_horizon}.nc"
         for cluster in snakemake.params.scenario["clusters"]
         for opt in snakemake.params.scenario["opts"]
         for sector_opt in snakemake.params.scenario["sector_opts"]
-        for ll in snakemake.params.scenario["ll"]
         for planning_horizon in snakemake.params.scenario["planning_horizons"]
     }
 
