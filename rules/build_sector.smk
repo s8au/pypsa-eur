@@ -543,7 +543,7 @@ rule build_EW_potentials:
     log:
         logs("build_EW_potentials_s_{clusters}.log"),
     resources:
-        mem_mb = 10000, 
+        mem_mb = 16000, 
     conda:
         "../envs/environment.yaml"
     script:

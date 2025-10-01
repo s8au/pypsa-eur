@@ -87,11 +87,5 @@ if __name__ == "__main__":
         
 
     # build and save potentials into CSV and PNG files
-    component = ["EW_hot","EW_temperate"]
-    for comp in component:
-        build_potentials(snakemake.input["network_geojson"], snakemake.input["corine_dataset"],snakemake.input["bioclimate_dataset"],comp,comp+".csv", snakemake.output["png_file"],True)
-
-        EW_potentials = pandas.read_csv(comp+".csv", index_col=0)
-        
-
-    snakemake.output["csv_file"]
+    build_potentials(snakemake.input["network_geojson"], snakemake.input["corine_dataset"],snakemake.input["bioclimate_dataset"],["EW_hot","EW_temperate"],snakemake.output["csv_file"], snakemake.output["png_file"],True)
+    

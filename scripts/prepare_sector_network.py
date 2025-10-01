@@ -937,7 +937,7 @@ def add_perennials(n, costs):
        efficiency=1,
        efficiency2=-costs.at['perennials gbr', "electricity-input"] * perennial_CO2_seq,
        efficiency3=costs.at['perennials gbr', "biogas-output"] * perennial_CO2_seq,  
-       carrier="perennial",
+       carrier="perennials",
        p_nom_extendable=True,
        p_max_pu=p_max_pu,
        capital_cost=costs.at['perennials gbr', "fixed"] * perennial_CO2_seq,
@@ -5086,13 +5086,16 @@ if __name__ == "__main__":
             eff = float(o.split("+")[-1])
         if "marg" in o:
             marg = float(o.split("+")[-1])
-        if "cap" in o:
-            cap = float(o.split("+")[-1])
+        # if "cap" in o:
+        #     cap = float(o.split("+")[-1])
         if "prisma" in o:
             options["dac_prisma"] = True
             options["dac"] = False
         if "MOF" in o:
-            dac_file = "dac_MOF"
+            print(o)
+            attr = (o.split("F")[-1])
+            print(attr)
+            dac_file = f"dac_MOF/mofs_{attr}"
         if "Lewatit" in  o:
             dac_file = "dac_lewatit"
 
