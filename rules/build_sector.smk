@@ -526,7 +526,7 @@ rule build_biochar_potentials:
     conda:
         "../envs/environment.yaml"
     script:
-        "../scripts/build_potentials.py"
+        "../scripts/build_corine_potentials.py"
 
 
 rule build_EW_potentials:
@@ -550,7 +550,7 @@ rule build_EW_potentials:
         "../scripts/build_potentials_EW.py" 
 
 
-rule build_afforestation_potentials:
+rule build_afforestation_corine_potentials:
     params:
         component = "afforestation",
         resolution = 250,
@@ -558,8 +558,27 @@ rule build_afforestation_potentials:
         corine_dataset = "data/bundle/corine/g250_clc06_V18_5.tif",
         network_geojson = resources("regions_onshore_base_s_{clusters}.geojson"),
     output:
+        csv_file = resources("afforestation_corine_potentials_s_{clusters}.csv"),
+        png_file = resources("afforestation_corine_potentials_s_{clusters}.png"),
+    log:
+        logs("build_afforestation_corine_potentials_s_{clusters}.log"),
+    resources:
+        mem_mb = 16000,
+    conda:
+        "../envs/environment.yaml"
+    script:
+        "../scripts/build_corine_potentials.py"
+
+
+rule build_afforestation_potentials:
+    params:
+        network_geojson = resources("regions_onshore_base_s_{clusters}.geojson"),
+        nuts2_geojson = "data/nuts/NUTS_RG_03M_2013_4326_LEVL_2.geojson",
+    input:
+        afforestation_corine_potentials_csv_file = resources("afforestation_corine_potentials_s_{clusters}.csv"),
+        afforestation_nuts_file = resources("afforestation_nuts_biomass_densities.xlsx") if config["afforestation"]["potential_type"] == "density" else resources("afforestation_nuts2_growth_rates.csv")
+    output:
         csv_file = resources("afforestation_potentials_s_{clusters}.csv"),
-        png_file = resources("afforestation_potentials_s_{clusters}.png"),
     log:
         logs("build_afforestation_potentials_s_{clusters}.log"),
     resources:
@@ -567,7 +586,51 @@ rule build_afforestation_potentials:
     conda:
         "../envs/environment.yaml"
     script:
-        "../scripts/build_potentials.py"
+        "../scripts/build_afforestation_potentials.py"
+
+
+rule get_afforestation_nuts_file:
+    input:
+    output:
+        afforestation_nuts_file = resources("afforestation_nuts_biomass_densities.xlsx") if config["afforestation"]["potential_type"] == "density" else resources("afforestation_nuts2_growth_rates.csv")
+    log:
+        logs("get_afforestation_nuts_file.log"),
+    resources:
+        mem_mb = 5000,
+    shell:
+        "wget https://ndownloader.figshare.com/files/43678089 -O resources/afforestation_nuts_biomass_densities.xlsx" if config["afforestation"]["potential_type"] == "density" else "wget https://raw.githubusercontent.com/BertoGBG/CO2-stores-preprocessing/refs/heads/main/afforestation/data/afforestation/afforestation_nuts2.csv -O resources/afforestation_nuts2_growth_rates.csv"
+
+
+rule build_perennial_potentials:
+    params:
+        biomass=config_provider("biomass"),
+    input:
+        nuts2="data/nuts/NUTS_RG_01M_2021_4326_LEVL_2.geojson",
+        country_shapes=resources("country_shapes.geojson"),
+        perennials_yields_1G_biofuels = resources("perennials_yields_1G_biofuels.csv"),
+        regions_onshore = resources("regions_onshore_base_s_{clusters}.geojson"),
+    output:
+        csv_file = resources("perennials_yields_1G_biofuels_s_{clusters}.csv"),
+    log:
+        logs("build_perennial_potentials_s_{clusters}.log"),
+    resources:
+        mem_mb = 1000,
+    conda:
+        "../envs/environment.yaml"
+    script:
+        "../scripts/build_perennials_potentials.py"
+
+
+rule get_perennial_potentials_nuts_file:
+    input:
+    output:
+        perennial_nuts_file = resources("perennials_yields_1G_biofuels.csv")
+    log:
+        logs("get_perennial_potential_nuts_file.log"),
+    resources:
+        mem_mb = 1000,
+    shell:
+        "wget https://raw.githubusercontent.com/BertoGBG/CO2-stores-preprocessing/refs/heads/main/afforestation_perennials/data/crops/yields_perennials_1G_biofuels.csv -O resources/perennials_yields_1G_biofuels.csv"
 
 
 rule build_biomass_transport_costs:
@@ -1253,6 +1316,7 @@ rule prepare_sector_network:
 	    if config_provider("sector", "afforestation")(w)
             else []
         ),
+        perennials_yields_1G_biofuels = resources("perennials_yields_1G_biofuels_s_{clusters}.csv"),
         h2_cavern=resources("salt_cavern_potentials_s_{clusters}.csv"),
         busmap_s=resources("busmap_base_s.csv"),
         busmap=resources("busmap_base_s_{clusters}.csv"),

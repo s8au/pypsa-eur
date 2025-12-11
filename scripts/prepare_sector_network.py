@@ -785,7 +785,6 @@ def add_biochar(n, costs):
     # add biochar buses
     n.add("Bus",
           spatial.nodes + " biochar",
-          carrier = "biochar",
           carrier = "biochar pyrolysis",
           unit = "t_biochar"
          )
@@ -806,7 +805,7 @@ def add_biochar(n, costs):
           bus = spatial.nodes + " co2 biochar",
           carrier = "co2 biochar",
           e_nom_extendable = True,
-          e_nom_max = biochar_potentials["potential"].values * co2_per_tonne * snakemake.config["biochar"]["co2_per_tonne_multiplier"] * snakemake.config["biochar"]["max_land_usage"]
+          e_nom_max = biochar_potentials["potential [sqkm]"].values * co2_per_tonne * snakemake.config["biochar"]["co2_per_tonne_multiplier"] * snakemake.config["biochar"]["potential_per_sqkm"] * snakemake.config["biochar"]["max_land_usage"] / snakemake.config["biochar"]["number_years"]
          )
 
 
@@ -842,21 +841,6 @@ def add_biochar(n, costs):
                       biochar_heat_bus,
                       carrier = "biochar heat"
                      )
-                n.add("Store",
-                      biochar_heat_bus,
-                      bus = biochar_heat_bus,
-                      e_nom_extendable = True,
-                      carrier = "biochar heat"
-                     )
-                
-                biochar_heat_atm_bus = node + " biochar heat to atm"
-                biochar_heat_atm_buses.append(biochar_heat_atm_bus)
-                
-                n.add("Bus", 
-                    biochar_heat_bus,
-                    carrier = "biochar heat"
-                    )
-                
                 n.add("Link",
                       biochar_heat_bus,
                       bus0 = biochar_heat_bus,
@@ -864,30 +848,30 @@ def add_biochar(n, costs):
                       p_nom_extendable = True,
                       carrier = "biochar heat"
                      )
-            else:
-                biochar_heat_buses.append(None)
+
+                biochar_heat_bus_waste = node + " biochar heat waste"
                 n.add("Bus",
-                    node + " biochar heat to atm",
-                    carrier = "biochar heat to atm",
-                    )
-
-                n.add("Link",
-                    node + " biochar heat to atm",
-                    bus0 = biochar_heat_bus,
-                    bus1 = node + " biochar heat to atm",
-                    p_nom_extendable = True,
-                    carrier = "biochar heat to atm"
-                    ) 
-
+                      biochar_heat_bus_waste,
+                      carrier = "biochar heat"
+                     )
                 n.add("Store",
-                    node + " biochar heat to atm",
-                    bus = node + " biochar heat to atm",
-                    e_nom_extendable = True,
-                    carrier = "biochar heat to atm"
-                    )
+                      biochar_heat_bus_waste,
+                      bus = biochar_heat_bus_waste,
+                      e_nom_extendable = True,
+                      carrier = "biochar heat"
+                     )
+                
+                
+                n.add("Link",
+                      biochar_heat_bus_waste,
+                      bus0 = biochar_heat_bus,
+                      bus1 = biochar_heat_bus_waste,
+                      p_nom_extendable = True,
+                      carrier = "biochar heat"
+                     )
             else:
                 biochar_heat_buses.append(None)
-                biochar_heat_atm_buses.append(None)
+
 
     else:
         biochar_heat_buses = [None]
@@ -939,10 +923,17 @@ def add_perennials(n, costs):
 
     logger.info("Adding perennials.")
 
-    perennial_CO2_seq = (
-        snakemake.config["perennials"]["yield"]
-        / snakemake.config["perennials"]["potential_co2"]
-    )  # tDM perennials / tCO2e sequestred
+    # load resources
+    biomass_potentials = pd.read_csv(snakemake.input.biomass_potentials, index_col=0)
+    perennials_yields_1G_biofuels = pd.read_csv(snakemake.input.perennials_yields_1G_biofuels).set_index("name")
+
+    # calculate CO2 sequestration per tDM perennials
+    perennial_CO2_seq = perennials_yields_1G_biofuels["perennials"] / snakemake.config["perennials"]["potential_co2"] # (tDM/tCO2 seq)
+
+    # calculate perennials potential based on conversion on first generation biofuels
+    perennials_area_spatial = (biomass_potentials.filter(regex='biofuels_1G') / perennials_yields_1G_biofuels.filter(regex='biofuels_1G')).sum(axis=1)
+    # (MWh/y) / (MWh / ha / y) = (ha) returns the area used by sum of the 3 biofuels_1G classes which can be assigned for perennials
+    perennials_potentials_spatial = perennials_area_spatial * snakemake.config["perennials"]["potential_co2"]  # (tCO2seq)  =  (ha) * (tCO2 seq/ha)
 
     nodes = pop_layout.index
     n.add("Carrier", "perennials")
@@ -956,11 +947,10 @@ def add_perennials(n, costs):
         unit="t_co2",
     )
 
-
+    # calculate biogas production based on harvesting time (in month)
     df_gbr = pd.DataFrame(index=n.snapshots, columns=["harvest"])
     df_gbr["harvest"] = df_gbr.index.month.isin([4, 5, 6, 7, 8, 9, 10]).astype(int)
     p_max_pu = pd.DataFrame(index=n.snapshots, columns=nodes)
-
     for node in nodes:
         p_max_pu[node] = df_gbr["harvest"]
 
@@ -979,55 +969,21 @@ def add_perennials(n, costs):
        carrier="perennials",
        p_nom_extendable=True,
        p_max_pu=p_max_pu,
-       capital_cost=costs.at['perennials gbr', "fixed"] * perennial_CO2_seq,
-       marginal_cost=costs.at['perennials gbr', "VOM"] * perennial_CO2_seq, 
-       lifetime=costs.at['perennials gbr', "lifetime"],
+       capital_cost=costs.at["perennials gbr", "fixed"] * perennial_CO2_seq,
+       marginal_cost=costs.at["perennials gbr", "VOM"] * perennial_CO2_seq,
+       lifetime=costs.at["perennials gbr", "lifetime"],
     )
 
-    biomass_potentials = pd.read_csv(snakemake.input.biomass_potentials, index_col=0)
-
-    perennials_potentials_spatial = (
-        (
-            biomass_potentials.filter(regex='biofuels_1G')
-            / snakemake.config["perennials"]["yield_biofuels_1G"]
-        ).sum(axis=1)
-        * snakemake.config["perennials"]["potential_co2"]
-    )  # potential tCO2e seq
-
-
-    n.madd(
-    "Store",
-    nodes,
-    suffix=" CO2s_perennials",
-    bus=nodes + " perennials co2 store",
-    e_nom_extendable=True,  
-    e_nom_max=perennials_potentials_spatial, 
-    carrier="perennials store",
-    e_cyclic=False,
-)
     n.add(
-    "Link",
-    nodes,
-    suffix=" perennials GBR",
-    bus0="co2 atmosphere",
-    bus1=nodes + " perennials co2 store",
-    bus2=nodes.values,
-    bus3=spatial.gas.biogas,
-    efficiency=1,
-    efficiency2=-costs.at['perennials gbr', "electricity-input"] * perennial_CO2_seq,
-    efficiency3=costs.at['perennials gbr', "biogas-output"] * perennial_CO2_seq,  
-    carrier="perennials",
-    p_nom_extendable=True,
-    p_max_pu=p_max_pu,
-    capital_cost=costs.at['perennials gbr', "fixed"] * perennial_CO2_seq,
-    marginal_cost=costs.at['perennials gbr', "VOM"] * perennial_CO2_seq, 
-    lifetime=costs.at['perennials gbr', "lifetime"],
-)
-
-
-    
-
-
+       "Store",
+       nodes,
+       suffix=" CO2s_perennials",
+       bus=nodes + " perennials co2 store",
+       e_nom_extendable=True,
+       e_nom_max=perennials_potentials_spatial.values,
+       carrier="perennial store",
+       e_cyclic=False,
+    )
 
 
 def add_EW(n, costs):
@@ -1078,6 +1034,8 @@ def add_afforestation(n, costs):
 
     # read afforestation potentials from CSV file
     afforestation_potentials = pd.read_csv(snakemake.input.afforestation_potentials).set_index("node")
+    densities = afforestation_potentials["biomass density [t/ha]"].values
+    potentials = afforestation_potentials["potential [t/ha]"].values
 
 
     # add CO2 afforestation bus
@@ -1093,33 +1051,24 @@ def add_afforestation(n, costs):
           spatial.nodes + " co2 afforestation",
           bus = spatial.nodes + " co2 afforestation",
           carrier = "co2 afforestation",
+          capital_cost = costs.at["Afforestation", "fixed"] / densities / snakemake.config["afforestation"]["co2_per_tonne"],
           e_nom_extendable = True,
-          e_nom_max = afforestation_potentials["potential"].values * snakemake.config["afforestation"]["co2_per_tonne"] * snakemake.config["afforestation"]["max_land_usage"] / costs.at["Afforestation", "lifetime"]
+          e_nom_max = potentials / costs.at["Afforestation", "lifetime"] * snakemake.config["afforestation"]["co2_per_tonne"] * snakemake.config["afforestation"]["max_land_usage"]
          )
-
-
-    # calculate capital cost for each country based on its forest (dry) biomass potential/density
-    cost = costs.at["Afforestation", "fixed"] * 100   # EUR/sqkm
-    capital_costs = []
-    for node in spatial.nodes:
-        country = node[:2]
-        potential = snakemake.config["afforestation"]["potential_per_sqkm"][country]
-        capital_costs.append(cost / potential / snakemake.config["afforestation"]["co2_per_tonne"])
-
-    #print("capital_cost_per_sqkm=%d * eur/tco2 = %d" % (cost, cost / 11700 / snakemake.config["afforestation"]["co2_per_tonne"]))
-
+    print("afforestation config",snakemake.config["afforestation"]["co2_per_tonne"] * snakemake.config["afforestation"]["max_land_usage"])
+    print(potentials.sum())
+    print(costs.at["Afforestation", "lifetime"])
+    print("afforestation potential", n.stores.e_nom_max.filter(like="afforestation").sum())
     # add CO2 afforestation link
     n.add("Link",
           spatial.nodes + " afforestation",
           bus0 = "co2 atmosphere",
           bus1 = spatial.nodes + " co2 afforestation",
           carrier = "co2 afforestation",
-          capital_cost = capital_costs,
           efficiency = 1,
           p_min_pu = 1,
           p_max_pu = 1,
-          p_nom_extendable = True,
-          lifetime = costs.at["Afforestation", "lifetime"]
+          p_nom_extendable = True
          )
 
 
@@ -1382,9 +1331,6 @@ def add_dac(n, costs, hi=-1, ei=-1):
     )  # MWh_th / tCO2
 
     if hi > 0:
-       heat_input = hi
-    if ei > 0:
-       electricity_input = ei
        heat_input =heat_input* hi
     if ei > 0:
        electricity_input =electricity_input* ei
@@ -1449,17 +1395,23 @@ def add_dac_prisma(n, costs, hi=-1, ei=-1, dac_file="dac_lewatit"):
                           how="right"))
 
     # # electricity & heat inputs, already shaped as [snapshot × location]
-    ei  = (pd.read_csv(f"data/{dac_file}/electricity-input.csv", index_col=0) +
+    elin  = (pd.read_csv(f"data/{dac_file}/electricity-input.csv", index_col=0) +
               pd.read_csv(f"data/{dac_file}/compression-electricity-input.csv",
                            index_col=0))
-    hi  = pd.read_csv(f"data/{dac_file}/heat-input.csv", index_col=0)
+    hein  = pd.read_csv(f"data/{dac_file}/heat-input.csv", index_col=0)
 
     # # keep only the three-letter country code, drop duplicate columns
-    for df in (ei, hi):
+    for df in (elin, hein):
         df.columns = df.columns.str[:3]
         df.index = pd.to_datetime(df.index)
-    ei = ei.loc[:,~ei.columns.duplicated()]
-    hi = hi.loc[:,~hi.columns.duplicated()]
+    if ei > 0:
+        elin = elin.loc[:,~elin.columns.duplicated()]*ei
+    else:
+        elin = elin.loc[:,~elin.columns.duplicated()]
+    if hi > 0:
+        hein = hein.loc[:,~hein.columns.duplicated()]*hi
+    else:
+        hein = hein.loc[:,~hein.columns.duplicated()]
     link_names = heat_buses.str.replace(" heat", " DAC")
 
     # 2 – construct an empty ts-frame with the right shape
@@ -1470,10 +1422,10 @@ def add_dac_prisma(n, costs, hi=-1, ei=-1, dac_file="dac_lewatit"):
     # 3 – fill it column–by–column
     for bus, link, loc in zip(heat_buses, link_names, locations):
         cc = loc[:3]                      # country code
-        if cc in ei.columns:
-            efficiency[link]  = -hi[cc] / ei[cc]
-            efficiency2[link] = -1 / ei[cc]
-            efficiency3[link] =  1 / ei[cc]
+        if cc in elin.columns:
+            efficiency[link]  = -hein[cc] / elin[cc]
+            efficiency2[link] = -1 / elin[cc]
+            efficiency3[link] =  1 / elin[cc]
     print(costs_dac['fixed'].values, costs_dac['fixed'].values *efficiency3.mean())
     print(hi, ei)
     print(efficiency, efficiency3)

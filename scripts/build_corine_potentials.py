@@ -12,7 +12,7 @@ import yaml
 
 
 
-def build_potentials(config_yaml, network_geojson, corine_dataset, resolution, component, csv_file, png_file, log):
+def build_corine_potentials(config_yaml, network_geojson, corine_dataset, resolution, component, csv_file, png_file, log):
 
     # load config yaml file representing the PyPSA-Eur configuration
     handle = open(config_yaml)
@@ -24,7 +24,7 @@ def build_potentials(config_yaml, network_geojson, corine_dataset, resolution, c
     if log is True:
         logging.basicConfig(level = config["logging"]["level"])
         logger = logging.getLogger(__name__)
-        logger.info("Calculate %s potentials" % component)
+        logger.info("Calculate CORINE potentials for %s" % component)
 
 
     # load network geojson file representing the PyPSA-Eur network
@@ -37,34 +37,30 @@ def build_potentials(config_yaml, network_geojson, corine_dataset, resolution, c
     cell_area = excluder.res**2
 
 
-    # calculate potential per node
-    df = pandas.DataFrame(columns = ["node", "potential"])
+    # calculate CORINE potential per node
+    df = pandas.DataFrame(columns = ["node", "area [sqkm]", "potential [sqkm]"])
     for node in nodes_geojson.index:
         shape = nodes_geojson.to_crs(excluder.crs).loc[[node]].geometry
         band, transform = shape_availability(shape, excluder)
+        area = shape.geometry.area.sum() / 1e6   # in sqkm
         selected_cells = band.sum() * cell_area / 1e6   # in sqkm
-        if isinstance(config[component]["potential_per_sqkm"], dict):
-            country = node[:2]
-            potential = selected_cells * config[component]["potential_per_sqkm"][country]
-        else:
-            potential = selected_cells * config[component]["potential_per_sqkm"]
-        df.loc[len(df)] = [node, potential]
+        df.loc[len(df)] = [node, area, selected_cells]
         if log is True:
-            logger.info("Node=%s * Area (sqkm)=%.1f * Potential=%.1f" % (node, shape.geometry.area.sum() / 1e6, potential))
+            logger.info("Node=%s * Area=%0.f [sqkm] * Potential=%0.f [sqkm]" % (node, area, selected_cells))
 
 
-    # save potentials into a CSV file
+    # save CORINE potentials into CSV file
     if csv_file is not None:
         if log is True:
-            logger.info("Save %s potentials into CSV file" % component)
+            logger.info("Save CORINE potentials for %s into CSV file '%s'" % (component, csv_file))
         df.set_index("node", inplace = True)
         df.to_csv(csv_file)
 
 
-    # save potentials into a PNG file
+    # save CORINE potentials into PNG file
     if png_file is not None:
         if log is True:
-            logger.info("Save %s potentials into PNG file" % component)
+            logger.info("Save CORINE potentials for %s into PNG file '%s'" % (component, png_file))
         shape = nodes_geojson.to_crs(excluder.crs).geometry
         band, transform = shape_availability(shape, excluder)
         fig, ax = plt.subplots(figsize = (20, 23))
@@ -77,10 +73,10 @@ def build_potentials(config_yaml, network_geojson, corine_dataset, resolution, c
 
 if __name__ == "__main__":
 
-    # build and save potentials into CSV and PNG files
+    # build and save CORINE potentials into CSV and PNG files
     if "snakemake" in globals():
-        build_potentials("config/config.yaml", snakemake.input["network_geojson"], snakemake.input["corine_dataset"], snakemake.params["resolution"], snakemake.params["component"], snakemake.output["csv_file"], snakemake.output["png_file"], True)
+        build_corine_potentials("config/config.yaml", snakemake.input["network_geojson"], snakemake.input["corine_dataset"], snakemake.params["resolution"], snakemake.params["component"], snakemake.output["csv_file"], snakemake.output["png_file"], True)
     else:
-        build_potentials("config.yaml", "regions_onshore_base_s_39.geojson", "g250_clc06_V18_5.tif", 250, "afforestation", "potentials.csv", "potentials.png", True)
+        build_corine_potentials("config.yaml", "regions_onshore_base_s_39.geojson", "g250_clc06_V18_5.tif", 250, "afforestation", "afforestation_corine_potentials_s_39.csv", "afforestation_corine_potentials_s_39.png", True)
 
 
