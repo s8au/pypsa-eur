@@ -1,0 +1,306 @@
+# -*- coding: utf-8 -*-
+# SPDX-FileCopyrightText: : 2017-2023 The PyPSA-Eur Authors
+#
+# SPDX-License-Identifier: MIT
+
+# This file is used to define the scenarios that are run by snakemake. Each entry on the first level is a scenario. Each scenario can contain configuration overrides with respect to the config/config.yaml settings.
+#
+# Example
+#
+# custom-scenario: # name of the scenario
+#   electricity:
+#       renewable_carriers: [wind, solar] # override the list of renewable carriers
+
+
+
+
+# seg_biosng_no_heat_biochar_aligned_2030:
+#   biomass:
+#     year: 2030
+#     scenario: ENS_Med #ENS_High
+#     classes:
+#       solid biomass:
+#       - Agricultural waste
+#       - Fuelwood residues
+#       - Secondary Forestry residues - woodchips
+#       - Sawdust
+#       - Residues from landscape care
+#       not included:
+#       - Sugar from sugar beet
+#       - Rape seed
+#       - "Sunflower, soya seed "
+#       - Bioethanol barley, wheat, grain maize, oats, other cereals and rye
+#       - Miscanthus, switchgrass, RCG
+#       - Willow
+#       - Poplar
+#       - FuelwoodRW
+#       - C&P_RW
+#       biofuels_1Gbioethanol:
+#       - Bioethanol barley, wheat, grain maize, oats, other cereals and rye
+#       biofuels_1Gsugar:
+#       - Sugar from sugar beet
+#       biofuels_1Grs:
+#       - Rape seed
+#       biogas:
+#       - Manure solid, liquid
+#       - Sludge
+#       municipal solid waste:
+#       - Municipal waste
+#     share_unsustainable_use_retained:
+#       2020: 1
+#       2025: 0.66
+#       2030: 0
+#       2035: 0
+#       2040: 0
+#       2045: 0
+#       2050: 0
+#     share_sustainable_potential_available:
+#       2020: 0
+#       2025: 0.33
+#       2030: 1
+#       2035: 1
+#       2040: 1
+#       2045: 1
+#       2050: 1
+#   sector:
+#     H2_network: false #true
+#     gas_network: true
+#     regional_oil_demand: true #false
+#     regional_coal_demand: false
+#     regional_co2_sequestration_potential:
+#         enable: true
+#         attribute:
+#         - conservative estimate Mt
+#         - conservative estimate GAS Mt
+#         - conservative estimate OIL Mt
+#         - conservative estimate aquifer Mt
+#         include_onshore: false
+#         min_size: 3
+#         max_size: 25
+#         years_of_storage: 25
+#     co2_spatial: true 
+#     co2_network: false
+#     methanol:
+#       regional_methanol_demand: false
+#       methanol_reforming: false
+#       methanol_reforming_cc: false
+#       methanol_to_kerosene: false
+#       methanol_to_power:
+#         ccgt: false
+#         ccgt_cc: false
+#         ocgt: false
+#         allam: false
+#       biomass_to_methanol: true #false
+#       biomass_to_methanol_cc: true #false
+#     biochar:
+#       enable: true
+#       heat_output: false  
+#     perennials: true
+#     EW: true 
+#     afforestation: true 
+#     biomass_spatial: true 
+#     biomass_transport: false #true 
+#     biogas_upgrading_cc: true 
+#     biomass_to_liquid: true 
+#     biomass_to_liquid_cc: true 
+#     electrobiofuels: false
+#     biosng: false #true 
+#     biosng_cc: false #true 
+
+#used for MGA paper
+# seg_biosng_no_heat_biochar_aligned:
+#   sector:
+#     H2_network: false #true
+#     gas_network: true
+#     regional_oil_demand: true #false
+#     regional_coal_demand: false
+#     regional_co2_sequestration_potential:
+#         enable: true
+#         attribute:
+#         - conservative estimate Mt
+#         - conservative estimate GAS Mt
+#         - conservative estimate OIL Mt
+#         - conservative estimate aquifer Mt
+#         include_onshore: false
+#         min_size: 3
+#         max_size: 25
+#         years_of_storage: 25
+#     co2_spatial: true 
+#     co2_network: false
+#     methanol:
+#       regional_methanol_demand: false
+#       methanol_reforming: false
+#       methanol_reforming_cc: false
+#       methanol_to_kerosene: false
+#       methanol_to_power:
+#         ccgt: false
+#         ccgt_cc: false
+#         ocgt: false
+#         allam: false
+#       biomass_to_methanol: true #false
+#       biomass_to_methanol_cc: true #false
+#     biochar:
+#       enable: true
+#       heat_output: false  
+#     perennials: true
+#     EW: true 
+#     afforestation: true 
+#     biomass_spatial: true 
+#     biomass_transport: false #true 
+#     biogas_upgrading_cc: true 
+#     biomass_to_liquid: true 
+#     biomass_to_liquid_cc: true 
+#     electrobiofuels: false
+#     biosng: false #true 
+#     biosng_cc: false #true 
+
+seg_biosng_no_heat_biochar_aligned_ENS_High:
+  biomass:
+    year: 2035
+    scenario: ENS_High
+  sector:
+    H2_network: false #true
+    gas_network: true
+    regional_oil_demand: true #false
+    regional_coal_demand: false
+    regional_co2_sequestration_potential:
+        enable: true
+        attribute:
+        - conservative estimate Mt
+        - conservative estimate GAS Mt
+        - conservative estimate OIL Mt
+        - conservative estimate aquifer Mt
+        include_onshore: false
+        min_size: 3
+        max_size: 25
+        years_of_storage: 25
+    co2_spatial: true 
+    co2_network: false
+    methanol:
+      regional_methanol_demand: false
+      methanol_reforming: false
+      methanol_reforming_cc: false
+      methanol_to_kerosene: false
+      methanol_to_power:
+        ccgt: false
+        ccgt_cc: false
+        ocgt: false
+        allam: false
+      biomass_to_methanol: true #false
+      biomass_to_methanol_cc: true #false
+    biochar:
+      enable: true
+      heat_output: false  
+    perennials: true
+    EW: true 
+    afforestation: true 
+    biomass_spatial: true 
+    biomass_transport: false #true 
+    biogas_upgrading_cc: true 
+    biomass_to_liquid: true 
+    biomass_to_liquid_cc: true 
+    electrobiofuels: false
+    biosng: false #true 
+    biosng_cc: false #true 
+
+seg_biosng_no_heat_biochar_aligned_sensitivity_sequestration:
+  sector:
+    H2_network: false #true
+    gas_network: true
+    regional_oil_demand: true #false
+    regional_coal_demand: false
+    regional_co2_sequestration_potential:
+        enable: true
+        attribute:
+        - conservative estimate Mt
+        - conservative estimate GAS Mt
+        - conservative estimate OIL Mt
+        - conservative estimate aquifer Mt
+        include_onshore: false
+        min_size: 3
+        max_size: 25
+        years_of_storage: 25
+    co2_spatial: true 
+    co2_network: false
+    methanol:
+      regional_methanol_demand: false
+      methanol_reforming: false
+      methanol_reforming_cc: false
+      methanol_to_kerosene: false
+      methanol_to_power:
+        ccgt: false
+        ccgt_cc: false
+        ocgt: false
+        allam: false
+      biomass_to_methanol: true #false
+      biomass_to_methanol_cc: true #false
+    biochar:
+      enable: true
+      heat_output: false  
+    perennials: true
+    EW: true 
+    afforestation: true 
+    biomass_spatial: true 
+    biomass_transport: false #true 
+    biogas_upgrading_cc: true 
+    biomass_to_liquid: true 
+    biomass_to_liquid_cc: true 
+    electrobiofuels: false
+    biosng: false #true 
+    biosng_cc: false #true 
+    co2_sequestration_potential:
+      2020: 0
+      2025: 0
+      2030: 50
+      2035: 100
+      2040: 200
+      2045: 200
+      2050: 400
+
+seg_biosng_no_heat_biochar_aligned_sensitivity_opts:
+  sector:
+    H2_network: false #true
+    gas_network: true
+    regional_oil_demand: true #false
+    regional_coal_demand: false
+    regional_co2_sequestration_potential:
+        enable: true
+        attribute:
+        - conservative estimate Mt
+        - conservative estimate GAS Mt
+        - conservative estimate OIL Mt
+        - conservative estimate aquifer Mt
+        include_onshore: false
+        min_size: 3
+        max_size: 25
+        years_of_storage: 25
+    co2_spatial: true 
+    co2_network: false
+    methanol:
+      regional_methanol_demand: false
+      methanol_reforming: false
+      methanol_reforming_cc: false
+      methanol_to_kerosene: false
+      methanol_to_power:
+        ccgt: false
+        ccgt_cc: false
+        ocgt: false
+        allam: false
+      biomass_to_methanol: true #false
+      biomass_to_methanol_cc: true #false
+    biochar:
+      enable: true
+      heat_output: false  
+    perennials: true
+    EW: true 
+    afforestation: true 
+    biomass_spatial: true 
+    biomass_transport: false #true 
+    biogas_upgrading_cc: true 
+    biomass_to_liquid: true 
+    biomass_to_liquid_cc: true 
+    electrobiofuels: false
+    biosng: false #true 
+    biosng_cc: false #true 
+
+

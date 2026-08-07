@@ -27,6 +27,7 @@ if config["foresight"] != "perfect":
         params:
             plotting=config_provider("plotting"),
             transmission_limit=config_provider("electricity", "transmission_limit"),
+            settings=config_provider("plotting", "balance_map", "co2_stored"),
         input:
             network=RESULTS
             + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
@@ -34,6 +35,8 @@ if config["foresight"] != "perfect":
         output:
             map=RESULTS
             + "maps/base_s_{clusters}_{opts}_{sector_opts}-costs-all_{planning_horizons}.pdf",
+            mapbal=RESULTS
+            + "maps/base_s_{clusters}_{opts}_{sector_opts}-balance-all_{planning_horizons}.pdf",
         threads: 2
         resources:
             mem_mb=10000,
@@ -102,6 +105,33 @@ if config["foresight"] != "perfect":
             "../envs/environment.yaml"
         script:
             "../scripts/plot_gas_network.py"
+    
+    rule plot_balance_map:
+        input:
+            network=RESULTS
+            + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
+            regions=resources("regions_onshore_base_s_{clusters}.geojson"),
+        output:
+            RESULTS
+            + "maps/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}-balance_map_{carrier}.pdf",
+        log:
+            RESULTS
+            + "logs/plot_balance_map/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{carrier}.log",
+        benchmark:
+            (
+                RESULTS
+                + "benchmarks/plot_balance_map/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_{carrier}"
+            )
+        threads: 1
+        resources:
+            mem_mb=8000,
+        params:
+            plotting=config_provider("plotting"),
+            settings=lambda w: config_provider("plotting", "balance_map", w.carrier),
+        message:
+            "Plotting balance map for {wildcards.clusters} clusters, {wildcards.opts} electric options, {wildcards.sector_opts} sector options, {wildcards.planning_horizons} planning horizons and {wildcards.carrier} carrier"
+        script:
+            "../scripts/plot_balance_map.py"
 
 
 if config["foresight"] == "perfect":

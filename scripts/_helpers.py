@@ -939,15 +939,15 @@ def rename_techs(label: str) -> str:
     rename_if_contains_dict = {
         "water tanks": "hot water storage",
         "retrofitting": "building retrofitting",
-        # "H2 Electrolysis": "hydrogen storage",
-        # "H2 Fuel Cell": "hydrogen storage",
-        # "H2 pipeline": "hydrogen storage",
+        "H2 Electrolysis": "hydrogen storage",
+        "H2 Fuel Cell": "hydrogen storage",
+        "H2 pipeline": "hydrogen storage",
         "battery": "battery storage",
         "H2 for industry": "H2 for industry",
         "land transport fuel cell": "land transport fuel cell",
         "land transport oil": "land transport oil",
         "oil shipping": "shipping oil",
-        # "CC": "CC"
+        "CC": "CC"
     }
 
     rename = {

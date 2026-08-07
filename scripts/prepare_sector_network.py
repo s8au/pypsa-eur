@@ -924,7 +924,7 @@ def add_perennials(n, costs):
     logger.info("Adding perennials.")
 
     # load resources
-    biomass_potentials = pd.read_csv(snakemake.input.biomass_potentials, index_col=0)
+    biomass_potentials = pd.read_csv(snakemake.input.biomass_potentials, index_col=0) *biomass_potentials_factor_per
     perennials_yields_1G_biofuels = pd.read_csv(snakemake.input.perennials_yields_1G_biofuels).set_index("name")
 
     # calculate CO2 sequestration per tDM perennials
@@ -1045,13 +1045,16 @@ def add_afforestation(n, costs):
           unit = "t_co2"
          )
 
+    investment_cost = costs.at["Afforestation", "investment"]
+    maintenance_cost = investment_cost * (costs.at["Afforestation", "FOM"] / 100) * costs.at["Afforestation", "lifetime"]
+    capital_cost = (investment_cost + maintenance_cost) / (densities * snakemake.config["afforestation"]["co2_per_tonne"])
 
     # add CO2 afforestation store
     n.add("Store",
           spatial.nodes + " co2 afforestation",
           bus = spatial.nodes + " co2 afforestation",
           carrier = "co2 afforestation",
-          capital_cost = costs.at["Afforestation", "fixed"] / densities / snakemake.config["afforestation"]["co2_per_tonne"],
+          #capital_cost = capital_cost #costs.at["Afforestation", "fixed"] / densities / snakemake.config["afforestation"]["co2_per_tonne"],
           e_nom_extendable = True,
           e_nom_max = potentials / costs.at["Afforestation", "lifetime"] * snakemake.config["afforestation"]["co2_per_tonne"] * snakemake.config["afforestation"]["max_land_usage"]
          )
@@ -1068,7 +1071,8 @@ def add_afforestation(n, costs):
           efficiency = 1,
           p_min_pu = 1,
           p_max_pu = 1,
-          p_nom_extendable = True
+          p_nom_extendable = True,
+          capital_cost = capital_cost,
          )
 
 
@@ -1429,6 +1433,14 @@ def add_dac_prisma(n, costs, hi=-1, ei=-1, dac_file="dac_lewatit"):
     print(costs_dac['fixed'].values, costs_dac['fixed'].values *efficiency3.mean())
     print(hi, ei)
     print(efficiency, efficiency3)
+    if hi == -2 or ei== -2:
+        capital_costs = costs_dac['fixed'].values *efficiency3.mean().mean()
+        efficiency= efficiency.mean().mean()
+        efficiency2= efficiency2.mean().mean()
+        efficiency3= efficiency3.mean().mean()
+    else:
+        capital_costs = costs_dac['fixed'].values *efficiency3.mean().values
+    print(efficiency, efficiency3)
     n.add(
         "Link",
         heat_buses.str.replace(" heat", " DAC"),
@@ -1437,7 +1449,7 @@ def add_dac_prisma(n, costs, hi=-1, ei=-1, dac_file="dac_lewatit"):
         bus2="co2 atmosphere",
         bus3=spatial.co2.df.loc[locations, "nodes"].values,
         carrier="DAC",
-        capital_cost=costs_dac['fixed'].values *efficiency3.mean().values,
+        capital_cost=capital_costs,
         efficiency= efficiency, #-heat_input_dac / electricity_input_dac,
         efficiency2=efficiency2, #-1 / electricity_input_dac,
         efficiency3=efficiency3, #1 / electricity_input_dac,
@@ -3038,7 +3050,7 @@ def add_methanol(n, costs):
 def add_biomass(n, costs):
     logger.info("Add biomass")
 
-    biomass_potentials = pd.read_csv(snakemake.input.biomass_potentials, index_col=0)
+    biomass_potentials = pd.read_csv(snakemake.input.biomass_potentials, index_col=0) * biomass_potentials_factor
 
     # need to aggregate potentials if gas not nodally resolved
     if options["gas_network"]:
@@ -5068,6 +5080,8 @@ if __name__ == "__main__":
     eff = 1
     marg = 1
     cap = 1
+    biomass_potentials_factor = 1
+    biomass_potentials_factor_per = 1
     for o in opts:
         if "hi" in o:
             hi = float(o.split("+")[-1])
@@ -5090,6 +5104,14 @@ if __name__ == "__main__":
             dac_file = f"dac_MOF/mofs_{attr}"
         if "Lewatit" in  o:
             dac_file = "dac_lewatit"
+        if "Lewatitmean"  in o:
+            hi=-2
+            ei=-2
+        if "bio2x" in o:
+            biomass_potentials_factor = 2
+        if "bioper2x" in o:
+            biomass_potentials_factor = 2
+            biomass_potentials_factor_per = 2
 
     investment_year = int(snakemake.wildcards.planning_horizons)
 
